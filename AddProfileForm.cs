@@ -16,11 +16,17 @@ namespace Project
     {
         private ProjectView _projectView;
         private int _selectedArea;
+        private List<ProfileCoordinate> _coordinates = new List<ProfileCoordinate>();
         public AddProfileForm(ProjectView projectView, int selectedArea)
         {
             _projectView = projectView;
             _selectedArea = selectedArea;
             InitializeComponent();
+
+            CoordinatesDataGridView.AutoGenerateColumns = false;
+            CoordinatesDataGridView.Columns.Add("X", "Координата X");
+            CoordinatesDataGridView.Columns.Add("Y", "Координата Y");
+            UpdateCoordinatesGrid();
         }
 
         private void SabeBtn_Click(object sender, EventArgs e)
@@ -31,28 +37,18 @@ namespace Project
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(YCordTextBox.Text) ||
-                string.IsNullOrWhiteSpace(XCordTextBox.Text))
+            if (_coordinates.Count < 2)
             {
-                MessageBox.Show("Пожалуйста, заполните все координаты");
+                MessageBox.Show("Для создания профиля необходимо минимум 2 точки");
                 return;
             }
 
-            if (!double.TryParse(YCordTextBox.Text, out double y) ||
-                !double.TryParse(XCordTextBox.Text, out double x))
-            {
-                MessageBox.Show("Координаты должны быть числовыми значениями");
-                return;
-            }
             using (var db = new AppDbContext())
             {
                 var newProfile = new Profile
                 {
                     ProfileType = TypeProfileComboBox.SelectedItem.ToString(),
-                    ProfileCoordinates = new List<ProfileCoordinate>
-                {
-                    new ProfileCoordinate { X = x, Y = y }
-                }
+                    ProfileCoordinates = _coordinates.ToList()
                 };
 
                 db.Profiles.Add(newProfile);
@@ -68,11 +64,55 @@ namespace Project
                 db.SaveChanges();
 
                 MessageBox.Show("Профиль успешно добавлен");
-
                 _projectView?.LoadData();
-
                 this.Close();
             }
+        }
+
+        private void AddPointBtn_Click(object sender, EventArgs e)
+        {
+            if (!double.TryParse(YCordTextBox.Text, out double y) ||
+                !double.TryParse(XCordTextBox.Text, out double x))
+            {
+                MessageBox.Show("Координаты должны быть числовыми значениями");
+                return;
+            }
+
+            _coordinates.Add(new ProfileCoordinate { X = x, Y = y });
+            UpdateCoordinatesGrid();
+
+            // Очищаем поля для ввода
+            XCordTextBox.Clear();
+            YCordTextBox.Clear();
+            XCordTextBox.Focus();
+        }
+
+        private void RemovePointBtn_Click(object sender, EventArgs e)
+        {
+            if (CoordinatesDataGridView.SelectedRows.Count > 0)
+            {
+                int index = CoordinatesDataGridView.SelectedRows[0].Index;
+                if (index >= 0 && index < _coordinates.Count)
+                {
+                    _coordinates.RemoveAt(index);
+                    UpdateCoordinatesGrid();
+                }
+            }
+        }
+        private void UpdateCoordinatesGrid()
+        {
+            CoordinatesDataGridView.Rows.Clear();
+            foreach (var coord in _coordinates)
+            {
+                CoordinatesDataGridView.Rows.Add(coord.X, coord.Y);
+            }
+
+            SaveBtn.Enabled = _coordinates.Count >= 2 && TypeProfileComboBox.SelectedItem != null;
+        }
+
+        private void TypeProfileComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateCoordinatesGrid();
         }
     }
 }
